@@ -9,27 +9,14 @@ const asyncHandler = require('../utils/asyncHandler');
 const router = express.Router();
 
 // Protect all routes after this middleware
-router.use(protect);
-router.use(checkApproval);
+// router.use(protect);
+// router.use(checkApproval);
 
 // @desc    Create new lead (public endpoint for landing pages)
 // @route   POST /api/leads
 // @access  Public
-router.post('/', [
-  body('firstName').trim().isLength({ min: 2 }).withMessage('First name must be at least 2 characters'),
-  body('lastName').trim().isLength({ min: 2 }).withMessage('Last name must be at least 2 characters'),
-  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
-  body('landingPageId').isMongoId().withMessage('Please provide valid landing page ID')
-], asyncHandler(async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      success: false,
-      errors: errors.array()
-    });
-  }
-
-  const { firstName, lastName, email, phone, company, message, landingPageId } = req.body;
+router.post('/', asyncHandler(async (req, res) => {
+  const { landingPageId, ...formData } = req.body;
 
   // Check if landing page exists
   const landingPage = await LandingPage.findById(landingPageId);
@@ -40,18 +27,84 @@ router.post('/', [
     });
   }
 
-  // Create lead
-  const lead = await Lead.create({
-    firstName,
-    lastName,
-    email,
-    phone,
-    company,
-    message,
+  // Prepare lead data
+  const leadData = {
     landingPage: landingPageId,
     ipAddress: req.ip,
-    userAgent: req.get('User-Agent')
-  });
+    userAgent: req.get('User-Agent'),
+    dynamicFields: new Map()
+  };
+
+  // Process default fields based on landing page configuration
+  if (landingPage.includeDefaultFields.firstName) {
+    if (!formData.firstName || formData.firstName.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'First name is required and must be at least 2 characters'
+      });
+    }
+    leadData.firstName = formData.firstName.trim();
+  }
+
+  if (landingPage.includeDefaultFields.lastName) {
+    if (!formData.lastName || formData.lastName.trim().length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: 'Last name is required and must be at least 2 characters'
+      });
+    }
+    leadData.lastName = formData.lastName.trim();
+  }
+
+  if (landingPage.includeDefaultFields.email) {
+    if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid email is required'
+      });
+    }
+    leadData.email = formData.email.toLowerCase().trim();
+  }
+
+  if (formData.phone) {
+    leadData.phone = formData.phone.trim();
+  }
+
+  if (landingPage.includeDefaultFields.company && formData.company) {
+    leadData.company = formData.company.trim();
+  }
+
+  if (landingPage.includeDefaultFields.message && formData.message) {
+    leadData.message = formData.message.trim();
+  }
+
+  // Define standard field names that should not be stored in dynamicFields
+  const standardFields = ['firstName', 'lastName', 'email', 'phone', 'landingPageId'];
+  
+  // Process dynamic form fields (both configured and unconfigured)
+  for (const [fieldName, fieldValue] of Object.entries(formData)) {
+    // Skip if it's a standard field or if value is empty
+    if (standardFields.includes(fieldName) || !fieldValue || fieldValue.toString().trim() === '') {
+      continue;
+    }
+    
+    // Check if this field is configured in the landing page
+    const configuredField = landingPage.formFields?.find(field => field.name === fieldName);
+    
+    // If field is configured and required, validate it
+    if (configuredField && configuredField.required && (!fieldValue || fieldValue.toString().trim() === '')) {
+      return res.status(400).json({
+        success: false,
+        message: `${configuredField.label} is required`
+      });
+    }
+    
+    // Store the field value
+    leadData.dynamicFields.set(fieldName, fieldValue.toString().trim());
+  }
+
+  // Create lead
+  const lead = await Lead.create(leadData);
 
   res.status(201).json({
     success: true,
@@ -60,6 +113,8 @@ router.post('/', [
   });
 }));
 
+router.use(protect);
+router.use(checkApproval);
 // @desc    Get all leads (Super Admin can see all, Sub Admin only their assigned landing pages)
 // @route   GET /api/leads
 // @access  Private
@@ -130,6 +185,7 @@ router.get('/', asyncHandler(async (req, res) => {
 
   // Pagination result
   const pagination = {};
+  const endIndex = startIndex + limit;
 
   if (endIndex < total) {
     pagination.next = {

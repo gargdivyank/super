@@ -8,8 +8,11 @@ import {
 } from 'lucide-react';
 import { subAdminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
+
 
 const SubAdminStats = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalLeads: 0,
     newLeads: 0,
@@ -46,8 +49,29 @@ const SubAdminStats = () => {
         landingPageData
       });
       
+      // Extract overview data from statsData
+      // The backend returns: { success: true, data: { overview: { totalLeads, newLeads, ... } } }
+      const overviewData = statsData.overview || statsData;
+      
+      // Ensure we're getting the correct total leads count from the aggregation
+      // The backend uses aggregation to count ALL leads, not just a paginated subset
+      const totalLeads = overviewData.totalLeads || 0;
+      const newLeads = overviewData.newLeads || 0;
+      const convertedLeads = overviewData.convertedLeads || 0;
+      const qualifiedLeads = overviewData.qualifiedLeads || 0;
+      
+      console.log('Extracted stats:', {
+        totalLeads,
+        newLeads,
+        convertedLeads,
+        qualifiedLeads
+      });
+      
       setStats({
-        ...statsData,
+        totalLeads,
+        newLeads,
+        convertedLeads,
+        qualifiedLeads,
         landingPage: landingPageData,
       });
     } catch (error) {
@@ -119,38 +143,52 @@ const SubAdminStats = () => {
       </div>
 
       {/* Landing Page Info */}
-      {stats.landingPage && (
-        <div className="card">
-          <div className="flex items-center">
-            <div className="flex-shrink-0 p-3 rounded-md bg-primary-100">
-              <Globe className="h-6 w-6 text-primary-600" />
-            </div>
-            <div className="ml-5 w-0 flex-1">
-              <dl>
-                <dt className="text-sm font-medium text-gray-500 truncate">
-                  Assigned Landing Page
-                </dt>
-                <dd className="text-lg font-medium text-gray-900">
-                  {stats.landingPage.name}
-                </dd>
-                <dd className="text-sm text-gray-500">
-                  {stats.landingPage.description}
-                </dd>
-                <dd className="text-sm text-gray-500">
-                  <a 
-                    href={stats.landingPage.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary-600 hover:text-primary-500"
-                  >
-                    {stats.landingPage.url}
-                  </a>
-                </dd>
-              </dl>
+      {(() => {
+        let assignedLandingPage = null;
+        if (Array.isArray(stats.landingPage) && stats.landingPage.length > 0) {
+          assignedLandingPage = stats.landingPage[0];
+        } else if (stats.landingPage && typeof stats.landingPage === 'object') {
+          assignedLandingPage = stats.landingPage;
+        }
+        return (
+          <div className="card">
+            <div className="flex items-center">
+              <div className="flex-shrink-0 p-3 rounded-md bg-primary-100">
+                <Globe className="h-6 w-6 text-primary-600" />
+              </div>
+              <div className="ml-5 w-0 flex-1">
+                <dl>
+                  <dt className="text-sm font-medium text-gray-500 truncate">
+                    Assigned Landing Page
+                  </dt>
+                  <dd className="text-lg font-medium text-gray-900">
+                    {assignedLandingPage ? assignedLandingPage.name : 'Not assigned'}
+                  </dd>
+                  {assignedLandingPage && (
+                    <>
+                      {assignedLandingPage.description && (
+                        <dd className="text-sm text-gray-500">{assignedLandingPage.description}</dd>
+                      )}
+                      {assignedLandingPage.url && (
+                        <dd className="text-sm text-gray-500">
+                          <a
+                            href={assignedLandingPage.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary-600 hover:text-primary-500"
+                          >
+                            {assignedLandingPage.url}
+                          </a>
+                        </dd>
+                      )}
+                    </>
+                  )}
+                </dl>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -179,7 +217,10 @@ const SubAdminStats = () => {
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+          
+          <button
+            onClick={() => navigate('/sub-admin/leads')}
+            className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
             <FileText className="h-4 w-4 mr-2" />
             View All Leads
           </button>
@@ -187,7 +228,9 @@ const SubAdminStats = () => {
             <Download className="h-4 w-4 mr-2" />
             Export Leads
           </button> */}
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+          <button 
+            onClick={() => navigate('/sub-admin/profile')}
+            className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
             <Users className="h-4 w-4 mr-2" />
             Manage Profile
           </button>

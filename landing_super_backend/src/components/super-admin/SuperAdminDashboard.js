@@ -31,7 +31,7 @@ const SuperAdminDashboard = () => {
     { name: 'Dashboard', href: '/super-admin', icon: BarChart3, component: DashboardStats },
     { name: 'Landing Pages', href: '/super-admin/landing-pages', icon: Globe, component: LandingPages },
     { name: 'Sub Admins', href: '/super-admin/sub-admins', icon: Users, component: SubAdmins },
-    { name: 'Access Requests', href: '/super-admin/access-requests', icon: FileText, component: AccessRequests },
+    // { name: 'Access Requests', href: '/super-admin/access-requests', icon: FileText, component: AccessRequests },
     { name: 'All Leads', href: '/super-admin/leads', icon: FileText, component: AllLeads },
   ];
 

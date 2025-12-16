@@ -31,7 +31,8 @@ router.get('/profile', asyncHandler(async (req, res) => {
 // @access  Private (Sub Admin only)
 router.put('/profile', [
   body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
-  body('companyName').optional().trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters')
+  // body('companyName').optional().trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters')
+  body('phone').optional().trim().isLength({ min: 7 }).withMessage('Please provide a valid phone number'),
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -41,11 +42,11 @@ router.put('/profile', [
     });
   }
 
-  const { name, companyName } = req.body;
+  const { name, phone } = req.body;
 
   const fieldsToUpdate = {
     name,
-    companyName
+    phone
   };
 
   // Remove undefined fields

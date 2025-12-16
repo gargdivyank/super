@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 
 const SubAdminProfile = () => {
   const [profile, setProfile] = useState(null);
+  const [assignedLandingPage, setAssignedLandingPage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -21,14 +22,16 @@ const SubAdminProfile = () => {
 
   useEffect(() => {
     fetchProfile();
+    fetchAssignedLandingPage();
   }, []);
 
   const fetchProfile = async () => {
     try {
       setLoading(true);
       const response = await subAdminAPI.getProfile();
-      setProfile(response.data);
-      reset(response.data);
+      const userData = response.data.data;
+      setProfile(userData);
+      reset(userData);
     } catch (error) {
       console.error('Error fetching profile:', error);
       toast.error('Failed to load profile');
@@ -37,12 +40,28 @@ const SubAdminProfile = () => {
     }
   };
 
+  const fetchAssignedLandingPage = async () => {
+    try {
+      const response = await subAdminAPI.getLandingPage();
+      // response.data.data is an array of landing pages
+      const pages = response.data.data;
+      setAssignedLandingPage(Array.isArray(pages) && pages.length > 0 ? pages[0] : null);
+    } catch (error) {
+      setAssignedLandingPage(null);
+    }
+  };
+
   const onSubmit = async (data) => {
     try {
       setSaving(true);
-      const response = await subAdminAPI.updateProfile(data);
-      setProfile(response.data);
-      updateUser(response.data);
+      const payload = {
+        name: data.name,
+        phone: data.phone,
+      };
+      const response = await subAdminAPI.updateProfile(payload);
+      const userData = response.data.data;
+      setProfile(userData);
+      updateUser(userData);
       setIsEditing(false);
       toast.success('Profile updated successfully');
     } catch (error) {
@@ -151,7 +170,7 @@ const SubAdminProfile = () => {
                         message: 'Invalid email address',
                       },
                     })}
-                    disabled={!isEditing}
+                    disabled
                     className={`input-field pl-10 ${!isEditing ? 'bg-gray-50' : ''} ${errors.email ? 'border-red-500' : ''}`}
                   />
                 </div>
@@ -172,7 +191,7 @@ const SubAdminProfile = () => {
                   <input
                     type="text"
                     {...register('companyName', { required: 'Company name is required' })}
-                    disabled={!isEditing}
+                    disabled
                     className={`input-field pl-10 ${!isEditing ? 'bg-gray-50' : ''} ${errors.companyName ? 'border-red-500' : ''}`}
                   />
                 </div>
@@ -224,7 +243,7 @@ const SubAdminProfile = () => {
                   <label className="block text-sm font-medium text-gray-700">Assigned Landing Page</label>
                   <input
                     type="text"
-                    value={profile?.landingPage?.name || 'Not assigned'}
+                    value={assignedLandingPage?.name || 'Not assigned'}
                     disabled
                     className="input-field bg-gray-50"
                   />

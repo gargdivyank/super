@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import { superAdminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 const DashboardStats = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalLandingPages: 0,
     totalSubAdmins: 0,
@@ -51,6 +53,9 @@ const DashboardStats = () => {
       const leadsArray = leads.data.data || leads.data;
       const accessRequestsArray = accessRequests.data.data || accessRequests.data;
 
+      // Use total from API response for leads (handles pagination)
+      const totalLeads = leads.data.total || leads.data.count || leadsArray.length;
+
       const pendingRequests = accessRequestsArray.filter(req => req.status === 'pending').length;
       const approvedRequests = accessRequestsArray.filter(req => req.status === 'approved').length;
       const rejectedRequests = accessRequestsArray.filter(req => req.status === 'rejected').length;
@@ -58,7 +63,7 @@ const DashboardStats = () => {
       console.log('Setting dashboard stats:', {
         totalLandingPages: landingPagesArray.length,
         totalSubAdmins: subAdminsArray.length,
-        totalLeads: leadsArray.length,
+        totalLeads,
         pendingRequests,
         approvedRequests,
         rejectedRequests,
@@ -67,7 +72,7 @@ const DashboardStats = () => {
       setStats({
         totalLandingPages: landingPagesArray.length,
         totalSubAdmins: subAdminsArray.length,
-        totalLeads: leadsArray.length,
+        totalLeads,
         pendingRequests,
         approvedRequests,
         rejectedRequests,
@@ -181,19 +186,27 @@ const DashboardStats = () => {
       <div className="card">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
+          <button 
+          onClick={() => navigate('/super-admin/landing-pages')}
+          className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500">
             <Globe className="h-4 w-4 mr-2" />
             Add Landing Page
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+          <button
+           onClick={() => navigate('/super-admin/sub-admins')}
+           className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
             <Users className="h-4 w-4 mr-2" />
             Create Sub Admin
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+          <button 
+           onClick={() => navigate('/super-admin/leads')}
+          className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
             <FileText className="h-4 w-4 mr-2" />
             View All Leads
           </button>
-          <button className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
+          <button 
+           onClick={() => navigate('/super-admin/sub-admins')}
+          className="flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500">
             <Clock className="h-4 w-4 mr-2" />
             Review Requests
           </button>

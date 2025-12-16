@@ -305,4 +305,166 @@ router.get('/:id/stats', asyncHandler(async (req, res) => {
   });
 }));
 
+// @desc    Update landing page form fields configuration
+// @route   PUT /api/landing-pages/:id/form-fields
+// @access  Private (Super Admin only)
+router.put('/:id/form-fields', [
+  authorize('super_admin'),
+  body('formFields').isArray().withMessage('Form fields must be an array'),
+  body('includeDefaultFields').isObject().withMessage('Include default fields must be an object')
+], asyncHandler(async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      success: false,
+      errors: errors.array()
+    });
+  }
+
+  const { formFields, includeDefaultFields } = req.body;
+
+  // Check if landing page exists
+  const existingLandingPage = await LandingPage.findById(req.params.id);
+  if (!existingLandingPage) {
+    return res.status(404).json({
+      success: false,
+      message: 'Landing page not found'
+    });
+  }
+
+  // Validate form fields structure
+  if (formFields) {
+    for (let i = 0; i < formFields.length; i++) {
+      const field = formFields[i];
+      if (!field.name || !field.label || !field.type) {
+        return res.status(400).json({
+          success: false,
+          message: `Form field at index ${i} is missing required properties (name, label, type)`
+        });
+      }
+      
+      // Set order if not provided
+      if (field.order === undefined) {
+        field.order = i;
+      }
+    }
+  }
+
+  // Validate includeDefaultFields
+  if (includeDefaultFields) {
+    const validDefaultFields = ['firstName', 'lastName', 'email', 'phone', 'company', 'message'];
+    for (const field of Object.keys(includeDefaultFields)) {
+      if (!validDefaultFields.includes(field)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid default field: ${field}`
+        });
+      }
+    }
+  }
+
+  const fieldsToUpdate = {};
+  if (formFields !== undefined) fieldsToUpdate.formFields = formFields;
+  if (includeDefaultFields !== undefined) fieldsToUpdate.includeDefaultFields = includeDefaultFields;
+
+  const landingPage = await LandingPage.findByIdAndUpdate(
+    req.params.id,
+    fieldsToUpdate,
+    { new: true, runValidators: true }
+  ).populate('createdBy', 'name email');
+
+  res.status(200).json({
+    success: true,
+    message: 'Landing page form fields updated successfully',
+    data: landingPage
+  });
+}));
+
+// @desc    Get landing page form configuration
+// @route   GET /api/landing-pages/:id/form-config
+// @access  Private
+router.get('/:id/form-config', asyncHandler(async (req, res) => {
+  const landingPage = await LandingPage.findById(req.params.id)
+    .select('name formFields includeDefaultFields');
+
+  if (!landingPage) {
+    return res.status(404).json({
+      success: false,
+      message: 'Landing page not found'
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    data: {
+      name: landingPage.name,
+      formFields: landingPage.formFields || [],
+      includeDefaultFields: landingPage.includeDefaultFields || {}
+    }
+  });
+}));
+
+// @desc    Test landing page form submission
+// @route   POST /api/landing-pages/:id/test-form
+// @access  Private (Super Admin only)
+router.post('/:id/test-form', [
+  authorize('super_admin')
+], asyncHandler(async (req, res) => {
+  const landingPage = await LandingPage.findById(req.params.id);
+  if (!landingPage) {
+    return res.status(404).json({
+      success: false,
+      message: 'Landing page not found'
+    });
+  }
+
+  // Validate form data against the landing page's form configuration
+  const { formData } = req.body;
+  const validationErrors = [];
+
+  // Validate default fields
+  if (landingPage.includeDefaultFields.firstName && (!formData.firstName || formData.firstName.trim().length < 2)) {
+    validationErrors.push('First name is required and must be at least 2 characters');
+  }
+
+  if (landingPage.includeDefaultFields.lastName && (!formData.lastName || formData.lastName.trim().length < 2)) {
+    validationErrors.push('Last name is required and must be at least 2 characters');
+  }
+
+  if (landingPage.includeDefaultFields.email && (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email))) {
+    validationErrors.push('Valid email is required');
+  }
+
+  // Validate dynamic fields
+  if (landingPage.formFields && landingPage.formFields.length > 0) {
+    for (const field of landingPage.formFields) {
+      const fieldValue = formData[field.name];
+      
+      if (field.required && (!fieldValue || fieldValue.toString().trim() === '')) {
+        validationErrors.push(`${field.label} is required`);
+      }
+    }
+  }
+
+  if (validationErrors.length > 0) {
+    return res.status(400).json({
+      success: false,
+      message: 'Form validation failed',
+      errors: validationErrors
+    });
+  }
+
+  res.status(200).json({
+    success: true,
+    message: 'Form validation passed',
+    data: {
+      formData,
+      formConfig: {
+        formFields: landingPage.formFields || [],
+        includeDefaultFields: landingPage.includeDefaultFields || {}
+      }
+    }
+  });
+}));
+
 module.exports = router; 

@@ -51,6 +51,11 @@ export const superAdminAPI = {
   updateLandingPage: (id, data) => api.put(`/super-admin/landing-pages/${id}`, data),
   deleteLandingPage: (id) => api.delete(`/super-admin/landing-pages/${id}`),
   
+  // Landing Page Form Configuration
+  getLandingPageFormConfig: (id) => api.get(`/landing-pages/${id}/form-config`),
+  updateLandingPageFormFields: (id, data) => api.put(`/landing-pages/${id}/form-fields`, data),
+  testLandingPageForm: (id, formData) => api.post(`/landing-pages/${id}/test-form`, { formData }),
+  
   // Sub Admins
   getSubAdmins: () => api.get('/super-admin/sub-admins'),
   createSubAdmin: (data) => api.post('/super-admin/sub-admins', data),
@@ -101,5 +106,6 @@ export const landingPageAPI = {
   getLandingPage: (id) => api.get(`/landing-pages/${id}`),
   submitLead: (landingPageId, leadData) => api.post(`/landing-pages/${landingPageId}/leads`, leadData),
 };
+
 
 export default api; 

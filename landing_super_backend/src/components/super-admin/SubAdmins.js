@@ -51,7 +51,12 @@ const SubAdmins = () => {
   const onSubmit = async (data) => {
     try {
       if (editingAdmin) {
-        await superAdminAPI.updateSubAdmin(editingAdmin.id, data);
+        const adminId = editingAdmin._id || editingAdmin.id;
+        if (!adminId) {
+          toast.error('Invalid admin ID');
+          return;
+        }
+        await superAdminAPI.updateSubAdmin(adminId, data);
         toast.success('Sub admin updated successfully');
       } else {
         await superAdminAPI.createSubAdmin(data);
@@ -70,14 +75,25 @@ const SubAdmins = () => {
 
   const handleEdit = (admin) => {
     setEditingAdmin(admin);
-    reset(admin);
+    // Set the landing page ID for editing
+    const editData = {
+      ...admin,
+      landingPageId: admin.landingPage?._id || admin.landingPage?.id || admin.access?.[0]?.landingPage?._id || admin.access?.[0]?.landingPage?.id || ''
+    };
+    reset(editData);
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (admin) => {
+    const adminId = admin._id || admin.id;
+    if (!adminId) {
+      toast.error('Invalid admin ID');
+      return;
+    }
+    
     if (window.confirm('Are you sure you want to delete this sub admin?')) {
       try {
-        await superAdminAPI.deleteSubAdmin(id);
+        await superAdminAPI.deleteSubAdmin(adminId);
         toast.success('Sub admin deleted successfully');
         fetchData();
       } catch (error) {
@@ -127,7 +143,7 @@ const SubAdmins = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Sub Admins</h1>
           <p className="mt-1 text-sm text-gray-500">
@@ -136,7 +152,7 @@ const SubAdmins = () => {
         </div>
         <button
           onClick={openCreateModal}
-          className="btn-primary flex items-center"
+          className="btn-primary flex items-center w-full sm:w-auto justify-center"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Sub Admin
@@ -185,7 +201,7 @@ const SubAdmins = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredAdmins.map((admin) => (
-                <tr key={admin.id} className="hover:bg-gray-50">
+                <tr key={admin._id || admin.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
@@ -209,10 +225,12 @@ const SubAdmins = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    {admin.landingPage ? (
+                    {admin.landingPage || (admin.access && admin.access.length > 0) ? (
                       <div className="flex items-center">
                         <Globe className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{admin.landingPage.name}</span>
+                        <span className="text-sm text-gray-900">
+                          {admin.landingPage?.name || admin.access?.[0]?.landingPage?.name}
+                        </span>
                       </div>
                     ) : (
                       <span className="text-sm text-gray-500">Not assigned</span>
@@ -220,8 +238,10 @@ const SubAdmins = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      admin.status === 'active' 
+                      admin.status === 'approved' 
                         ? 'bg-green-100 text-green-800' 
+                        : admin.status === 'pending'
+                        ? 'bg-yellow-100 text-yellow-800'
                         : 'bg-red-100 text-red-800'
                     }`}>
                       {admin.status}
@@ -239,7 +259,7 @@ const SubAdmins = () => {
                         <Edit className="h-4 w-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(admin.id)}
+                        onClick={() => handleDelete(admin)}
                         className="text-red-600 hover:text-red-900"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -351,7 +371,7 @@ const SubAdmins = () => {
                       >
                         <option value="">Select landing page</option>
                         {landingPages.map((page) => (
-                          <option key={page.id} value={page.id}>
+                          <option key={page._id || page.id} value={page._id || page.id}>
                             {page.name}
                           </option>
                         ))}
@@ -363,10 +383,11 @@ const SubAdmins = () => {
                       <select
                         {...register('status')}
                         className="input-field mt-1"
-                        defaultValue="active"
+                        defaultValue="approved"
                       >
-                        <option value="active">Active</option>
-                        <option value="inactive">Inactive</option>
+                        <option value="pending">Pending</option>
+                        <option value="approved">Approved</option>
+                        <option value="rejected">Rejected</option>
                       </select>
                     </div>
                   </div>

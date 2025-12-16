@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const path = require('path');
 
 // Load environment variables
-dotenv.config({ path: './config.env' });
+dotenv.config({ path: './.env' });
 
 // Import database configuration
 const connectDB = require('./config/database');

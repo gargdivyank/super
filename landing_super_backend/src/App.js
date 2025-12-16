@@ -10,7 +10,16 @@ import LandingPage from './components/LandingPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, initialized } = useAuth();
+
+  // While we are initializing auth (checking token), show loading instead of redirecting
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600" />
+      </div>
+    );
+  }
   
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;

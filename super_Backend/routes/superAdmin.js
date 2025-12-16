@@ -292,7 +292,8 @@ router.post('/sub-admins', [
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('companyName').trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters')
+  body('companyName').trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters'),
+  body('landingPageId').optional().isMongoId().withMessage('Please provide valid landing page ID')
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -302,7 +303,7 @@ router.post('/sub-admins', [
     });
   }
 
-  const { name, email, password, companyName } = req.body;
+  const { name, email, password, companyName, landingPageId, phone, status } = req.body;
 
   // Check if user already exists
   const existingUser = await User.findOne({ email });
@@ -313,28 +314,57 @@ router.post('/sub-admins', [
     });
   }
 
+  // Validate landing page if provided
+  if (landingPageId) {
+    const landingPage = await LandingPage.findById(landingPageId);
+    if (!landingPage || landingPage.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid landing page'
+      });
+    }
+  }
+
   // Create user with approved status
   const user = await User.create({
     name,
     email,
     password,
     companyName,
+    phone,
     role: 'sub_admin',
-    status: 'approved',
+    status: status || 'approved',
     approvedBy: req.user.id,
     approvedAt: Date.now()
   });
+
+  // Create admin access record if landing page is provided
+  if (landingPageId) {
+    await AdminAccess.create({
+      subAdmin: user._id,
+      landingPage: landingPageId,
+      grantedBy: req.user.id,
+      status: 'active'
+    });
+  }
+
+  // Get the created user with access information
+  const userWithAccess = await User.findById(user._id)
+    .select('-password')
+    .populate('approvedBy', 'name email');
+
+  const access = await AdminAccess.find({ 
+    subAdmin: user._id,
+    status: 'active'
+  }).populate('landingPage', 'name url');
 
   res.status(201).json({
     success: true,
     message: 'Sub admin created successfully',
     data: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      status: user.status,
-      companyName: user.companyName
+      ...userWithAccess.toObject(),
+      access,
+      landingPage: access.length > 0 ? access[0].landingPage : null
     }
   });
 }));
@@ -345,8 +375,15 @@ router.post('/sub-admins', [
 router.put('/sub-admins/:id', [
   body('name').optional().trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('companyName').optional().trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters'),
-  body('status').optional().isIn(['approved', 'rejected', 'suspended']).withMessage('Invalid status')
+  body('status').optional().isIn(['pending', 'approved', 'rejected']).withMessage('Invalid status'),
+  body('landingPageId').optional().isMongoId().withMessage('Please provide valid landing page ID')
 ], asyncHandler(async (req, res) => {
+  if (!req.params.id || req.params.id === 'undefined') {
+    return res.status(400).json({
+      success: false,
+      message: 'Sub admin ID is required'
+    });
+  }
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({
@@ -355,7 +392,7 @@ router.put('/sub-admins/:id', [
     });
   }
 
-  const { name, companyName, status } = req.body;
+  const { name, companyName, status, landingPageId, phone } = req.body;
 
   const user = await User.findById(req.params.id);
   if (!user || user.role !== 'sub_admin') {
@@ -365,11 +402,15 @@ router.put('/sub-admins/:id', [
     });
   }
 
+  // Only set phone if it's a non-empty string
   const fieldsToUpdate = {
     name,
     companyName,
     status
   };
+  if (phone && phone.trim() !== '') {
+    fieldsToUpdate.phone = phone.trim();
+  }
 
   // Remove undefined fields
   Object.keys(fieldsToUpdate).forEach(key => 
@@ -393,10 +434,48 @@ router.put('/sub-admins/:id', [
     { new: true, runValidators: true }
   ).select('-password');
 
+  // Handle landing page assignment
+  if (landingPageId !== undefined) {
+    // Remove existing access records (if any)
+    await AdminAccess.deleteMany({ 
+      subAdmin: req.params.id,
+      status: 'active'
+    });
+
+    // Create new access record if landing page is provided and not empty
+    if (landingPageId && landingPageId !== '') {
+      // Validate landing page
+      const landingPage = await LandingPage.findById(landingPageId);
+      if (!landingPage || landingPage.status !== 'active') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid landing page'
+        });
+      }
+
+      await AdminAccess.create({
+        subAdmin: req.params.id,
+        landingPage: landingPageId,
+        grantedBy: req.user.id,
+        status: 'active'
+      });
+    }
+  }
+
+  // Get updated user with access information
+  const access = await AdminAccess.find({ 
+    subAdmin: req.params.id,
+    status: 'active'
+  }).populate('landingPage', 'name url');
+
   res.status(200).json({
     success: true,
     message: 'Sub admin updated successfully',
-    data: updatedUser
+    data: {
+      ...updatedUser.toObject(),
+      access,
+      landingPage: access.length > 0 ? access[0].landingPage : null
+    }
   });
 }));
 

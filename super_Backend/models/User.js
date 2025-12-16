@@ -35,6 +35,11 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Please provide company name'],
     trim: true
   },
+  phone: {
+    type: String,
+    required: false, // or false if optional
+  },
+  
   status: {
     type: String,
     enum: ['pending', 'approved', 'rejected'],

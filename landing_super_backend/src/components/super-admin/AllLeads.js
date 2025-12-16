@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Search, Filter, Calendar, FileText, Globe } from 'lucide-react';
+import { Download, Search, Filter, Calendar, FileText, Globe, ChevronDown, ChevronRight } from 'lucide-react';
 import { superAdminAPI } from '../../services/api';
 import toast from 'react-hot-toast';
 
@@ -11,30 +11,80 @@ const AllLeads = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [landingPageFilter, setLandingPageFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
+  const [expandedLeads, setExpandedLeads] = useState(new Set());
+ 
+  // pagination
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [total, setTotal] = useState(0);
+  const [paginationInfo, setPaginationInfo] = useState({});
+
+
+
+  // When filter changes, reset to page 1
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, landingPageFilter, dateFilter]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [page, limit, statusFilter, landingPageFilter, dateFilter, searchTerm]);
+
+  // Helper function to convert dateFilter to startDate/endDate
+  const getDateRange = (dateFilter) => {
+    if (dateFilter === 'all') {
+      return { startDate: undefined, endDate: undefined };
+    }
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+    let startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    switch (dateFilter) {
+      case 'today':
+        return {
+          startDate: startDate.toISOString(),
+          endDate: today.toISOString()
+        };
+      case 'week':
+        startDate.setDate(today.getDate() - 7);
+        return {
+          startDate: startDate.toISOString(),
+          endDate: today.toISOString()
+        };
+      case 'month':
+        startDate.setDate(today.getDate() - 30);
+        return {
+          startDate: startDate.toISOString(),
+          endDate: today.toISOString()
+        };
+      default:
+        return { startDate: undefined, endDate: undefined };
+    }
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      const dateRange = getDateRange(dateFilter);
+      const filters = {
+        page,
+        limit,
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        landingPage: landingPageFilter !== 'all' ? landingPageFilter : undefined,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        search: searchTerm !== '' ? searchTerm : undefined
+      };
       const [leadsResponse, pagesResponse] = await Promise.all([
-        superAdminAPI.getAllLeads(),
+        superAdminAPI.getAllLeads(filters),
         superAdminAPI.getLandingPages(),
       ]);
-      
-      console.log('AllLeads API Responses:', {
-        leads: leadsResponse,
-        landingPages: pagesResponse
-      });
-      
-      // Check if response.data.data exists, otherwise use response.data
       const leadsArray = leadsResponse.data.data || leadsResponse.data;
       const pagesArray = pagesResponse.data.data || pagesResponse.data;
-      
       setLeads(leadsArray);
       setLandingPages(pagesArray);
+      setTotal(leadsResponse.data.total || leadsResponse.data.count || leadsArray.length);
+      setPaginationInfo(leadsResponse.data.pagination || {});
     } catch (error) {
       console.error('Error fetching data:', error);
       toast.error('Failed to load leads');
@@ -43,18 +93,184 @@ const AllLeads = () => {
     }
   };
 
+  const toggleLeadExpansion = (leadId) => {
+    const newExpanded = new Set(expandedLeads);
+    if (newExpanded.has(leadId)) {
+      newExpanded.delete(leadId);
+    } else {
+      newExpanded.add(leadId);
+    }
+    setExpandedLeads(newExpanded);
+  }
+
+
+  const getId = (obj) =>
+    typeof obj === 'string' ? obj : (obj && (obj._id || obj.id)) || '';
+
+
+
+  const renderDynamicFields = (lead) => {
+    if (!lead.dynamicFields || Object.keys(lead.dynamicFields).length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+        <h4 className="text-sm font-medium text-gray-700 mb-2">Additional Form Fields:</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          {Object.entries(lead.dynamicFields).map(([key, value]) => (
+            <div key={key} className="text-sm">
+              <span className="font-medium text-gray-600">{key}:</span>
+              <span className="ml-2 text-gray-900">{value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderLeadDetails = (lead) => {
+    const leadKey = getId(lead);
+    const isExpanded = expandedLeads.has(leadKey);
+
+    return (
+      <>
+        <tr key={leadKey} className="hover:bg-gray-50">
+          <td className="px-6 py-4 whitespace-nowrap">
+            <div className="flex items-center">
+              <button
+                 onClick={() => {
+                  const next = new Set(expandedLeads);
+                  next.has(leadKey) ? next.delete(leadKey) : next.add(leadKey);
+                  setExpandedLeads(next);
+                }}
+                className="mr-2 text-gray-400 hover:text-gray-600"
+              >
+                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              </button>
+              <div>
+                <div className="text-sm font-medium text-gray-900">
+                  {lead.firstName} {lead.lastName}
+                </div>
+                {lead.company && (
+                  <div className="text-sm text-gray-500">{lead.company}</div>
+                )}
+              </div>
+            </div>
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            <div className="text-sm text-gray-900">{lead.email}</div>
+            {lead.phone && (
+              <div className="text-sm text-gray-500">{lead.phone}</div>
+            )}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            {lead.landingPage ? (
+              <div className="flex items-center">
+                <Globe className="h-4 w-4 text-gray-400 mr-2" />
+                <span className="text-sm text-gray-900">{lead.landingPage.name}</span>
+              </div>
+            ) : (
+              <span className="text-sm text-gray-500">Unknown</span>
+            )}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap">
+            {getStatusBadge(lead.status)}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {lead.source || 'Direct'}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {new Date(lead.createdAt).toLocaleDateString()}
+          </td>
+          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {lead.lastContacted
+              ? new Date(lead.lastContacted).toLocaleDateString()
+              : 'Never'
+            }
+          </td>
+        </tr>
+        {isExpanded && (
+          <tr>
+            <td colSpan="7" className="px-6 py-4 bg-gray-50">
+              <div className="space-y-3">
+                {/* Standard Fields */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Standard Information:</h4>
+                    <div className="space-y-1 text-sm">
+                      {lead.firstName && <div><span className="font-medium">First Name:</span> {lead.firstName}</div>}
+                      {lead.lastName && <div><span className="font-medium">Last Name:</span> {lead.lastName}</div>}
+                      {lead.email && <div><span className="font-medium">Email:</span> {lead.email}</div>}
+                      {lead.phone && <div><span className="font-medium">Phone:</span> {lead.phone}</div>}
+                      {/* {lead.company && <div><span className="font-medium">Company:</span> {lead.company}</div>} */}
+                      {/* {lead.message && <div><span className="font-medium">Message:</span> {lead.message}</div>} */}
+                    </div>
+                  </div>
+
+                  {/* Additional Lead Info */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Lead Details:</h4>
+                    <div className="space-y-1 text-sm">
+                      <div><span className="font-medium">Status:</span> {lead.status}</div>
+                      <div><span className="font-medium">Source:</span> {lead.source || 'Direct'}</div>
+                      {/* <div><span className="font-medium">IP Address:</span> {lead.ipAddress || 'N/A'}</div>
+                      <div><span className="font-medium">Created:</span> {new Date(lead.createdAt).toLocaleString()}</div>
+                      {lead.updatedAt && (
+                        <div><span className="font-medium">Last Updated:</span> {new Date(lead.updatedAt).toLocaleString()}</div>
+                      )} */}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dynamic Fields */}
+                {renderDynamicFields(lead)}
+              </div>
+            </td>
+          </tr>
+        )}
+      </>
+    );
+  };
+
   const handleExport = async () => {
     try {
+      const dateRange = getDateRange(dateFilter);
       const filters = {
         status: statusFilter !== 'all' ? statusFilter : undefined,
-        landingPageId: landingPageFilter !== 'all' ? landingPageFilter : undefined,
-        dateFilter: dateFilter !== 'all' ? dateFilter : undefined,
+        landingPage: landingPageFilter !== 'all' ? landingPageFilter : undefined,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        search: searchTerm !== '' ? searchTerm : undefined,
       };
 
       const response = await superAdminAPI.exportLeads(filters);
       
-      // Create download link
-      const blob = new Blob([response.data], { type: 'text/csv' });
+      // response.data.data is an array of objects
+      const leads = response.data.data || [];
+      if (!leads.length) {
+        toast.error('No leads to export');
+        return;
+      }
+      
+      // Convert to CSV - exclude IP Address column
+      const allHeaders = Object.keys(leads[0]);
+      const headers = allHeaders.filter(h => h !== 'IP Address' && h !== 'ipAddress');
+      const csvRows = [headers.join(',')];
+      for (const row of leads) {
+        csvRows.push(headers.map(h => {
+          let val = row[h] ?? '';
+          // Escape quotes and commas
+          if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
+            val = '"' + val.replace(/"/g, '""') + '"';
+          }
+          return val;
+        }).join(','));
+      }
+      const csvString = csvRows.join('\r\n');
+      
+      // Download
+      const blob = new Blob([csvString], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -63,7 +279,7 @@ const AllLeads = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       toast.success('Leads exported successfully');
     } catch (error) {
       console.error('Error exporting leads:', error);
@@ -72,20 +288,28 @@ const AllLeads = () => {
   };
 
   const filteredLeads = (Array.isArray(leads) ? leads : []).filter(lead => {
-    const matchesSearch = 
-      lead.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch =
+      lead.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      lead.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       lead.phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      lead.company?.toLowerCase().includes(searchTerm.toLowerCase());
-    
+      lead.company?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      // Search in dynamic fields
+      (lead.dynamicFields && Object.values(lead.dynamicFields).some(value => 
+        value?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+      ));
+
     const matchesStatus = statusFilter === 'all' || lead.status === statusFilter;
-    const matchesLandingPage = landingPageFilter === 'all' || lead.landingPage?.id === landingPageFilter;
-    
+    const matchesLandingPage =
+      landingPageFilter === 'all' ||
+      getId(lead.landingPage) === landingPageFilter;
+
+
     let matchesDate = true;
     if (dateFilter !== 'all') {
       const leadDate = new Date(lead.createdAt);
       const today = new Date();
-      
+
       switch (dateFilter) {
         case 'today':
           matchesDate = leadDate.toDateString() === today.toDateString();
@@ -102,7 +326,7 @@ const AllLeads = () => {
           matchesDate = true;
       }
     }
-    
+
     return matchesSearch && matchesStatus && matchesLandingPage && matchesDate;
   });
 
@@ -122,6 +346,38 @@ const AllLeads = () => {
         {config.text}
       </span>
     );
+  };
+
+  // Pagination controls
+  const onNextPage = () => {
+    if (paginationInfo.next) setPage(paginationInfo.next.page);
+  };
+  const onPrevPage = () => {
+    if (paginationInfo.prev) setPage(paginationInfo.prev.page);
+  };
+  const onPageSelect = (num) => {
+    setPage(num);
+  };
+
+  // Calculate totalPages
+  const totalPages = Math.ceil(total / limit) || 1;
+
+  // Render page number buttons
+  const renderPageNumbers = () => {
+    let pagesArr = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pagesArr.push(
+        <button
+          key={i}
+          onClick={() => onPageSelect(i)}
+          className={`mx-1 rounded px-2 py-1 border ${i === page ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-900'}`}
+          disabled={i === page}
+        >
+          {i}
+        </button>
+      );
+    }
+    return pagesArr;
   };
 
   if (loading) {
@@ -152,6 +408,9 @@ const AllLeads = () => {
           <p className="mt-1 text-sm text-gray-500">
             View and manage all leads from all landing pages
           </p>
+          <div className="mt-1 text-xs text-gray-500">
+            Page {page} / {totalPages}. Showing {leads.length} of {total} leads.
+          </div>
         </div>
         <button
           onClick={handleExport}
@@ -203,12 +462,16 @@ const AllLeads = () => {
               className="input-field"
             >
               <option value="all">All Landing Pages</option>
-              {Array.isArray(landingPages) && landingPages.map((page) => (
-                <option key={page.id} value={page.id}>
-                  {page.name}
-                </option>
-              ))}
+              {Array.isArray(landingPages) && landingPages.map((page) => {
+                const pid = getId(page);
+                return (
+                  <option key={pid} value={pid}>
+                    {page.name}
+                  </option>
+                );
+              })}
             </select>
+
           </div>
 
           {/* Date Filter */}
@@ -258,50 +521,18 @@ const AllLeads = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredLeads.map((lead) => (
-                <tr key={lead.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{lead.name}</div>
-                    {lead.company && (
-                      <div className="text-sm text-gray-500">{lead.company}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{lead.email}</div>
-                    {lead.phone && (
-                      <div className="text-sm text-gray-500">{lead.phone}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {lead.landingPage ? (
-                      <div className="flex items-center">
-                        <Globe className="h-4 w-4 text-gray-400 mr-2" />
-                        <span className="text-sm text-gray-900">{lead.landingPage.name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-gray-500">Unknown</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(lead.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {lead.source || 'Direct'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(lead.createdAt).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {lead.lastContacted 
-                      ? new Date(lead.lastContacted).toLocaleDateString()
-                      : 'Never'
-                    }
-                  </td>
-                </tr>
+                renderLeadDetails(lead)
               ))}
             </tbody>
           </table>
         </div>
-
+        {/* Pagination Controls */}
+        <div className="my-4 flex justify-center items-center space-x-1">
+          <button onClick={onPrevPage} disabled={!paginationInfo.prev} className="px-2 py-1 border rounded disabled:opacity-50">Prev</button>
+          {renderPageNumbers()}
+          <button onClick={onNextPage} disabled={!paginationInfo.next} className="px-2 py-1 border rounded disabled:opacity-50">Next</button>
+        </div>
+        {/* End Pagination Controls */}
         {filteredLeads.length === 0 && (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
@@ -322,7 +553,7 @@ const AllLeads = () => {
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-5">
         <div className="card">
           <div className="text-center">
-            <div className="text-2xl font-bold text-gray-900">{leads.length}</div>
+            <div className="text-2xl font-bold text-gray-900">{total}</div>
             <div className="text-sm text-gray-500">Total Leads</div>
           </div>
         </div>

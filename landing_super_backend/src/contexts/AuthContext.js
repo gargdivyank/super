@@ -11,28 +11,95 @@ export const useAuth = () => {
   return context;
 };
 
+// export const AuthProvider = ({ children }) => {
+//   const [user, setUser] = useState(null);
+//   const [isAuthenticated, setIsAuthenticated] = useState(false);
+//   const [loading, setLoading] = useState(true);
+//   const [initialized, setInitialized] = useState(false);
+
+//   useEffect(() => {
+//     // Check if user is already logged in
+//     const token = localStorage.getItem('token');
+//     const userData = localStorage.getItem('user');
+    
+//     if (token && userData) {
+//       try {
+//         setUser(JSON.parse(userData));
+//         setIsAuthenticated(true);
+//       } catch (error) {
+//         console.error('Error parsing user data:', error);
+//         localStorage.removeItem('token');
+//         localStorage.removeItem('user');
+//       }
+//     }
+    
+//     setLoading(false);
+//   }, []);
 export const AuthProvider = ({ children }) => {
+  // user: object | null
+  // isAuthenticated: boolean (true when user is authenticated)
+  // loading: boolean for login/register/logout network operations
+  // initialized: boolean -> true after we checked localStorage/token on mount
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    // Check if user is already logged in
-    const token = localStorage.getItem('token');
-    const userData = localStorage.getItem('user');
-    
-    if (token && userData) {
+    // On mount, try to restore token & validate it with server.
+    const init = async () => {
+      const token = localStorage.getItem('token');
+      const userData = localStorage.getItem('user');
+
+      if (!token) {
+        // No token stored -> finish initialization
+        setInitialized(true);
+        return;
+      }
+
       try {
-        setUser(JSON.parse(userData));
-        setIsAuthenticated(true);
+        // First, quickly restore user from localStorage for immediate UI update
+        if (userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            setUser(parsedUser);
+            setIsAuthenticated(true);
+          } catch (err) {
+            console.warn('Failed to parse saved user, will re-validate.', err);
+            localStorage.removeItem('user');
+          }
+        }
+
+        // Validate token with the server using the correct API method
+        const res = await authAPI.getProfile();
+        
+        // Backend returns { success: true, data: user }
+        const serverUser = res?.data?.data || res?.data || null;
+        if (serverUser) {
+          setUser(serverUser);
+          setIsAuthenticated(true);
+          // Keep localStorage in sync with server data
+          localStorage.setItem('user', JSON.stringify(serverUser));
+        } else {
+          // Server returned no user -> clear token
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+          setUser(null);
+          setIsAuthenticated(false);
+        }
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        console.error('Auth validation failed on init:', error);
+        // Invalid token or network error -> clear stored credentials
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        setUser(null);
+        setIsAuthenticated(false);
+      } finally {
+        setInitialized(true);
       }
-    }
-    
-    setLoading(false);
+    };
+
+    init();
   }, []);
 
   const login = async (email, password) => {
@@ -79,6 +146,7 @@ export const AuthProvider = ({ children }) => {
     user,
     isAuthenticated,
     loading,
+    initialized,
     login,
     register,
     logout,

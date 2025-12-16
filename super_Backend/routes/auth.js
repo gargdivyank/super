@@ -13,7 +13,8 @@ router.post('/register', [
   body('name').trim().isLength({ min: 2 }).withMessage('Name must be at least 2 characters'),
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('companyName').trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters')
+  body('companyName').trim().isLength({ min: 2 }).withMessage('Company name must be at least 2 characters'),
+  body('phone').trim().isLength({ min: 7 }).withMessage('Please provide a valid phone number'),
 ], asyncHandler(async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -23,7 +24,7 @@ router.post('/register', [
     });
   }
 
-  const { name, email, password, companyName } = req.body;
+  const { name, email, password, companyName, phone } = req.body;
 
   // Check if user already exists
   const existingUser = await User.findOne({ email });
@@ -40,6 +41,7 @@ router.post('/register', [
     email,
     password,
     companyName,
+    phone,
     role: 'sub_admin',
     status: 'pending'
   });
@@ -57,7 +59,8 @@ router.post('/register', [
       email: user.email,
       role: user.role,
       status: user.status,
-      companyName: user.companyName
+      companyName: user.companyName,
+      phone: user.phone
     }
   });
 }));

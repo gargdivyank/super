@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { subAdminAPI } from '../../services/api';
 import { 
   FileText, 
   BarChart3, 
@@ -15,8 +16,23 @@ import SubAdminStats from './SubAdminStats';
 
 const SubAdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [landingPage, setLandingPage] = useState(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetchLandingPage();
+  }, []);
+
+  const fetchLandingPage = async () => {
+    try {
+      const response = await subAdminAPI.getLandingPage();
+      const landingPageData = response.data.data || response.data;
+      setLandingPage(landingPageData && landingPageData.length > 0 ? landingPageData[0] : null);
+    } catch (error) {
+      console.error('Error fetching landing page:', error);
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -128,9 +144,9 @@ const SubAdminDashboard = () => {
               <div className="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-200" />
               <div className="flex items-center gap-x-4">
                 <span className="text-sm text-gray-700">Welcome, {user?.name}</span>
-                {user?.landingPage && (
-                  <span className="text-sm text-gray-500">| {user.landingPage.name}</span>
-                )}
+                {/* {landingPage && (
+                  <span className="text-sm text-gray-500">| {landingPage.name}</span>
+                )} */}
               </div>
             </div>
           </div>
