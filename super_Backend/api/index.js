@@ -36,7 +36,8 @@ app.get("/api/health", (req, res) => {
   res.json({ message: "Server OK" });
 });
 
-module.exports = {
-    app,
-    handler: serverless(app),
-  };
+// module.exports = {
+//     app,
+//     handler: serverless(app),
+//   };
+module.exports = serverless(app);
