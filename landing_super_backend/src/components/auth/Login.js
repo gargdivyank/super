@@ -225,7 +225,7 @@ const Login = () => {
               </div>
 
               {/* Demo credentials box */}
-              <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-xs">
+              {/* <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 px-4 py-3 text-xs">
                 <p className="text-slate-500 font-medium mb-1">
                   Demo credentials (for testing):
                 </p>
@@ -234,12 +234,9 @@ const Login = () => {
                     <span className="font-semibold text-slate-700">Super Admin:</span>{' '}
                     superadmin@example.com / <span className="font-mono">SuperAdmin@123</span>
                   </p>
-                  {/* <p>
-                    <span className="font-semibold text-slate-700">Sub Admin:</span>{' '}
-                    subadmin@example.com / <span className="font-mono">password123</span>
-                  </p> */}
+              
                 </div>
-              </div>
+              </div> */}
               <p className="mt-4 text-center text-sm">
                 <Link
                   to="/"
