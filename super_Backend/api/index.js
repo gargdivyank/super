@@ -1,8 +1,16 @@
 const express = require("express");
 const serverless = require("serverless-http");
 const path = require("path");
-require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
- const cors = require('cors');
+
+// Load environment variables - works for both local (.env) and Vercel (env vars)
+try {
+  require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
+} catch (e) {
+  // .env file not found (normal on Vercel), use environment variables instead
+  // Vercel automatically provides environment variables from dashboard
+}
+
+const cors = require('cors');
 const connectDB = require("../config/database");
 
 // import routes
@@ -36,8 +44,10 @@ app.get("/api/health", (req, res) => {
   res.json({ message: "Server OK" });
 });
 
-// module.exports = {
-//     app,
-//     handler: serverless(app),
-//   };
-module.exports = serverless(app);
+// Create serverless handler
+const handler = serverless(app);
+
+// Export handler as default for Vercel (serverless deployment)
+// Also export app as a property for local development (server.js)
+module.exports = handler;
+module.exports.app = app;
